@@ -1,3 +1,26 @@
+// 在 import 语句之后，class WizardModel 之前添加
+
+// 显示屏型号定义
+interface DisplayModel {
+id: string;
+name: string;
+width: number;
+height: number;
+colorDepth: number;
+description: string;
+}
+
+const DISPLAY_MODELS: DisplayModel[] = [
+{ id: "4inch", name: "4 inch", width: 480, height: 272, colorDepth: 16, description: "4 inch display" },
+{ id: "4.3inch", name: "4.3 inch", width: 480, height: 272, colorDepth: 16, description: "4.3 inch display" },
+{ id: "5inch", name: "5 inch", width: 800, height: 480, colorDepth: 16, description: "5 inch display" },
+{ id: "7inch", name: "7 inch", width: 800, height: 480, colorDepth: 16, description: "7 inch display" },
+{ id: "9inch", name: "9 inch", width: 800, height: 480, colorDepth: 16, description: "9 inch display" },
+{ id: "10.1inch", name: "10.1 inch", width: 1280, height: 800, colorDepth: 16, description: "10.1 inch display" },
+{ id: "3.99inch", name: "3.99 inch", width: 480, height: 480, colorDepth: 16, description: "3.99 inch round display" },
+{ id: "6.86inch", name: "6.86 inch", width: 720, height: 1280, colorDepth: 16, description: "6.86 inch display" }
+];
+
 import { dialog, getCurrentWindow } from "@electron/remote";
 import fs from "fs";
 import { rmdir } from "fs/promises";
@@ -17,6 +40,69 @@ import {
     IObservableValue,
     autorun
 } from "mobx";
+
+// 在 import 语句之后添加样式
+const displayModelStyles = `
+.EezStudio_ProjectWizard_DisplayModelSelection {
+margin: 20px 0;
+}
+
+.display-model-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+gap: 10px;
+margin: 10px 0;
+}
+
+.display-model-card {
+border: 2px solid #ddd;
+border-radius: 8px;
+padding: 15px;
+cursor: pointer;
+transition: all 0.2s ease;
+background: white;
+}
+
+.display-model-card:hover {
+border-color: #007bff;
+background: #f8f9fa;
+}
+
+.display-model-card.selected {
+border-color: #007bff;
+background: #e3f2fd;
+}
+
+.display-model-name {
+font-weight: bold;
+font-size: 16px;
+margin-bottom: 5px;
+}
+
+.display-model-resolution {
+color: #666;
+font-size: 14px;
+margin-bottom: 3px;
+}
+
+.display-model-colors {
+color: #666;
+font-size: 12px;
+margin-bottom: 5px;
+}
+
+.display-model-description {
+color: #888;
+font-size: 12px;
+font-style: italic;
+}
+`;
+
+// 动态添加样式
+const styleSheet = document.createElement("style");
+styleSheet.textContent = displayModelStyles;
+document.head.appendChild(styleSheet);
+
 import { observer } from "mobx-react";
 
 import {
@@ -136,6 +222,89 @@ class WizardModel {
     section: "templates" | "examples" = "templates";
     folder: string | undefined = "_allTemplates";
     type: string | undefined = "dashboard";
+	// === 添加这些显示屏相关属性 ===
+	displayModel: string | undefined = "5inch";
+	displayModelError: string | undefined;
+	// ============================
+	// === 添加这些显示屏相关方法 ===
+	{/* === 添加显示屏选择 === */}
+	<DisplayModelSelection wizardModel={wizardModel} />
+	{/* ==================== */}
+	// === 添加模板处理方法 ===
+	async applyDisplayTemplate(projectFolderPath: string) {
+	const displayModel = this.selectedDisplayModel;
+	if (!displayModel) return;
+	
+	// 创建显示屏特定的模板配置
+async createDisplayTemplateConfig(projectFolderPath: string) {
+const displayModel = this.selectedDisplayModel;
+if (!displayModel) return;
+
+try {
+const templateConfig = {
+display: {
+model: displayModel.id,
+width: displayModel.width,
+height: displayModel.height,
+colorDepth: displayModel.colorDepth,
+fixIncludes: true // 标记需要修复包含路径
+},
+variables: {
+RESTclient: "RESTclient",
+Modbus: "Modbus",
+SCPI: "SCPI",
+MariaDB: "MariaDBMySQL",
+MQTT: "MQTT",
+Timer: "Timer"
+},
+createdAt: new Date().toISOString()
+};
+
+const configPath = path.join(projectFolderPath, 'dc-rad-config.json');
+await fs.promises.writeFile(configPath, JSON.stringify(templateConfig, undefined, 2), 'utf8');
+
+console.log("Created display template configuration");
+} catch (err) {
+console.error("Error creating template config:", err);
+}
+}
+
+// 修改 applyDisplayTemplate 方法
+async applyDisplayTemplate(projectFolderPath: string) {
+const displayModel = this.selectedDisplayModel;
+if (!displayModel) return;
+
+try {
+// 1. 设置屏幕属性到项目文件
+await this.setupScreenProperties(projectFolderPath);
+
+// 2. 添加所需的变量
+await this.addRequiredVariables(projectFolderPath);
+
+// 3. 创建模板配置供构建系统使用
+await this.createDisplayTemplateConfig(projectFolderPath);
+
+} catch (err) {
+console.error("Error applying display template:", err);
+}
+}
+
+
+	
+	
+	validateDisplayModel() {
+	if (!this.displayModel) {
+	this.displayModelError = "Please select a display model";
+	return false;
+	}
+	this.displayModelError = undefined;
+	return true;
+	}
+
+	get selectedDisplayModel(): DisplayModel | undefined {
+	return DISPLAY_MODELS.find(model => model.id === this.displayModel);
+	}
+	// ============================
 
     static makeTemplatesWizardModel() {
         const wizardModel = new WizardModel();
@@ -247,6 +416,12 @@ class WizardModel {
             gitInit: observable,
             lvglVersion: observable,
             commandsProtocol: observable,
+			// === 添加这些 ===
+			displayModel: observable,
+			displayModelError: observable,
+			selectedDisplayModel: computed,
+			validateDisplayModel: action,
+			// ================
             selectedTemplateProject: computed,
             validateName: action,
             validateLocation: action,
@@ -291,7 +466,9 @@ class WizardModel {
                     this.section = options.section;
                     this.folder = options.folder;
                     this.type = options.type;
-
+					// === 添加这一行 ===
+					this.displayModel = options.displayModel || "5inch";
+					// ================
                     this.location = options.location;
                     this.createDirectory = options.createDirectory;
                     this.bb3ProjectOption = options.bb3ProjectOption;
@@ -330,6 +507,9 @@ class WizardModel {
                     section: this.section,
                     type: this.type,
                     folder: this.folder,
+					// === 添加这一行 ===
+					displayModel: this.displayModel,
+					// ================
 
                     location: this.location,
                     createDirectory: this.createDirectory,
@@ -1208,6 +1388,9 @@ class WizardModel {
             try {
                 this.validateName();
                 this.validateLocation();
+				// === 添加显示屏验证 ===
+				this.validateDisplayModel();
+				// ====================
 
                 if (this.nameError || this.locationError) {
                     return false;
@@ -1692,7 +1875,43 @@ class WizardModel {
                         }
                     }
                 }
+				
+				// 加载项目模板
+let projectStr: string;
+let project: any;
 
+if (
+this.selectedTemplateProject ||
+(this.isSelectedExampleWithGitRepository && this.gitClone)
+) {
+// ... git clone 逻辑 ...
+} else {
+// 这是我们需要修改的部分 - 加载并修改项目文件
+project = await this.loadEezProject();
+
+// === 添加显示屏设置修改 ===
+if (this.selectedDisplayModel && project.settings?.general) {
+// 设置显示屏尺寸
+project.settings.general.displayWidth = this.selectedDisplayModel.width;
+project.settings.general.displayHeight = this.selectedDisplayModel.height;
+
+// 设置颜色深度（如果有这个设置）
+if (project.settings.general.colorDepth !== undefined) {
+project.settings.general.colorDepth = this.selectedDisplayModel.colorDepth;
+}
+
+console.log(`Applied display settings: ${this.selectedDisplayModel.width}x${this.selectedDisplayModel.height}, ${this.selectedDisplayModel.colorDepth} bits`);
+}
+// ========================
+
+projectStr = JSON.stringify(project, undefined, 2);
+}
+
+// ... 现有文件保存逻辑 ...
+}
+// ... 现有代码 ...
+};	
+				
                 this.saveOptions(SaveOptionsFlags.All);
 
                 openProject(projectFilePath, runMode);
@@ -1921,6 +2140,64 @@ const ProjectTypesList = observer(
             );
         }
     }
+);
+
+// 显示屏选择组件
+const DisplayModelSelection = observer(
+class DisplayModelSelection extends React.Component<{
+wizardModel: WizardModel;
+}> {
+render() {
+const { wizardModel } = this.props;
+
+return (
+<div className="EezStudio_ProjectWizard_DisplayModelSelection">
+<div className="form-label">Display Model</div>
+<div className="form-text">
+Select the display model for your project
+</div>
+
+<div className="display-model-grid">
+{DISPLAY_MODELS.map(model => (
+<div
+key={model.id}
+className={classNames(
+"display-model-card",
+{
+selected: wizardModel.displayModel === model.id
+}
+)}
+onClick={() => {
+wizardModel.displayModel = model.id;
+wizardModel.validateDisplayModel();
+}}
+>
+<DisplayModelSelection wizardModel={wizardModel} />
+<div className="display-model-name">
+{model.name}
+</div>
+<div className="display-model-resolution">
+{model.width} x {model.height}
+</div>
+<div className="display-model-colors">
+{model.colorDepth} bits
+</div>
+<div className="display-model-description">
+{model.description}
+</div>
+</div>
+))}
+</div>
+
+{wizardModel.displayModelError && (
+<div className="text-danger small">
+{wizardModel.displayModelError}
+</div>
+)}
+</div>
+);
+}
+}
 );
 
 const ProjectTypeComponent = observer(

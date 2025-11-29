@@ -1,0 +1,7 @@
+{
+    "name": "My Dashboard Template",
+    "description": "Local dashboard project template",
+    "type": "dashboard",
+    "version": "1.0.0",
+    "eez-project-path": "project.eez-project"
+}
